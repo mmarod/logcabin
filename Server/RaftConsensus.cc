@@ -652,6 +652,41 @@ Configuration::stagingAll(const Predicate& predicate) const
         return true;
 }
 
+bool
+Configuration::stagingQuorumAll(const Predicate& predicate) const
+{
+    if (state == State::STAGING) {
+        if (newServers.servers.empty())
+            return true;
+        uint64_t count = 0;
+        for (auto it = newServers.servers.begin(); it != newServers.servers.end(); ++it) {
+            if (predicate(**it))
+                ++count;
+        }
+        return (count >= newServers.servers.size() / 2 + 1);
+    } else {
+        return true;
+    }
+}
+
+bool
+Configuration::stagingOnly(const Predicate& predicate) const
+{
+    if (state == State::STAGING) {
+        if (newServers.servers.empty())
+            return true;
+        for (auto it = newServers.servers.begin(); it != newServers.servers.end(); ++it) {
+            if (oldServers.contains(*it))
+                continue;
+            if (!predicate(**it))
+                return false;
+        }
+        return true;
+    } else {
+        return true;
+    }
+}
+
 uint64_t
 Configuration::stagingMin(const GetValue& getValue) const
 {
@@ -1651,14 +1686,18 @@ RaftConsensus::setConfiguration(
             // caller will fill in response
             return ClientResult::NOT_LEADER;
         }
-        if (configuration->stagingAll(&Server::isCaughtUp)) {
-            NOTICE("Done catching up servers");
+        if (configuration->stagingOnly(&Server::isCaughtUp)) {
+            NOTICE("Done catching up new servers");
+            break;
+        }
+        if (configuration->stagingQuorumAll(&Server::isCaughtUp)) {
+            NOTICE("Done catching up quorum of new servers");
             break;
         }
         if (Clock::now() >= checkProgressAt) {
             using RaftConsensusInternal::StagingProgressing;
             StagingProgressing progressing(epoch, response);
-            if (!configuration->stagingAll(progressing)) {
+            if (!configuration->stagingQuorumAll(progressing)) {
                 NOTICE("Failed to catch up new servers, aborting "
                        "configuration change");
                 configuration->resetStagingServers();

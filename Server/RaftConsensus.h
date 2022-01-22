@@ -617,6 +617,18 @@ class Configuration {
     bool stagingAll(const Predicate& predicate) const;
 
     /**
+     * Return true if a quorum of servers in the staging set satisfies the
+     * predicate, false otherwise.
+     */
+    bool stagingQuorumAll(const Predicate& predicate) const;
+
+    /**
+     * Return true if all servers that are in the staging set but not the quorum
+     * satisfies the predicate, false otherwise.
+     */
+    bool stagingOnly(const Predicate& predicate) const;
+
+    /**
      * Return the smallest value of any server in the staging set.
      * \return
      *      Minimum value on any server in the staging set, or 0 if the staging
